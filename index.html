@@ -261,7 +261,7 @@
       timeElem.innerText = "正在刷新...";
 
       try {
-        const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=200`;
+        const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=200&status=true`;
         const res = await fetch(url);
         const json = await res.json();
         const feeds = json.feeds || [];
