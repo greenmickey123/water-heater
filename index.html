@@ -145,7 +145,7 @@
     }
     .chart-box {
       width: 100%;
-      height: 200px;
+      height: 190px;
     }
   </style>
 </head>
@@ -155,7 +155,7 @@
     <div class="header">
       <div>
         <h1 class="title">☀️ 太阳能热水器</h1>
-        <div class="subtitle" id="updateTime">正在同步最新水温...</div>
+        <div class="subtitle" id="updateTime">正在同步最新数据...</div>
       </div>
       <button class="btn-refresh" onclick="fetchData()">刷新</button>
     </div>
@@ -191,7 +191,7 @@
       </div>
     </div>
 
-    <!-- 24小时历史温度走势图 -->
+    <!-- 图表 1：水温走势曲线 -->
     <div class="card">
       <div class="chart-header">
         <span>📈 水温走势曲线</span>
@@ -201,12 +201,24 @@
         <canvas id="tempChart"></canvas>
       </div>
     </div>
+
+    <!-- 图表 2：电池电量走势曲线 -->
+    <div class="card">
+      <div class="chart-header">
+        <span>🔋 电池电量走势</span>
+        <span class="chart-range">充放电监控</span>
+      </div>
+      <div class="chart-box">
+        <canvas id="batChart"></canvas>
+      </div>
+    </div>
   </div>
 
   <script>
     const CHANNEL_ID = "3569758";
     const READ_KEY = "A2LU28QO3OKLBI54";
-    let chartInstance = null;
+    let tempChartInstance = null;
+    let batChartInstance = null;
 
     async function fetchData() {
       const timeElem = document.getElementById('updateTime');
@@ -275,42 +287,40 @@
           const lastDate = new Date(latest.created_at);
           timeElem.innerText = `更新于 ${lastDate.getHours().toString().padStart(2, '0')}:${lastDate.getMinutes().toString().padStart(2, '0')}:${lastDate.getSeconds().toString().padStart(2, '0')}`;
 
-          // 绘制平滑历史走势图
-          renderChart(feeds);
+          // 绘制平滑历史走势图（水温 + 电池）
+          renderCharts(feeds);
         }
       } catch (e) {
         timeElem.innerText = "网络异常，未能获取最新数据";
       }
     }
 
-    function renderChart(feeds) {
+    function renderCharts(feeds) {
       const labels = [];
-      const dataPoints = [];
+      const tempData = [];
+      const batData = [];
 
       feeds.forEach(f => {
-        if (f.field1) {
-          const d = new Date(f.created_at);
-          labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-          dataPoints.push(parseFloat(f.field1));
-        }
+        const d = new Date(f.created_at);
+        labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+        tempData.push(f.field1 ? parseFloat(f.field1) : null);
+        batData.push(f.field3 ? parseInt(f.field3) : null);
       });
-
-      const ctx = document.getElementById('tempChart').getContext('2d');
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
 
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
       const textColor = isDark ? '#8E8E93' : '#8E8E93';
 
-      chartInstance = new Chart(ctx, {
+      // 1. 水温图表
+      const ctxTemp = document.getElementById('tempChart').getContext('2d');
+      if (tempChartInstance) tempChartInstance.destroy();
+      tempChartInstance = new Chart(ctxTemp, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [{
             label: '水温 (°C)',
-            data: dataPoints,
+            data: tempData,
             borderColor: '#FF9500',
             backgroundColor: 'rgba(255, 149, 0, 0.08)',
             borderWidth: 2.5,
@@ -325,13 +335,42 @@
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: textColor, maxTicksLimit: 6 }
-            },
+            x: { grid: { display: false }, ticks: { color: textColor, maxTicksLimit: 6 } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+          }
+        }
+      });
+
+      // 2. 电池电量图表
+      const ctxBat = document.getElementById('batChart').getContext('2d');
+      if (batChartInstance) batChartInstance.destroy();
+      batChartInstance = new Chart(ctxBat, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '剩余电量 (%)',
+            data: batData,
+            borderColor: '#34C759',
+            backgroundColor: 'rgba(52, 199, 89, 0.08)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: textColor, maxTicksLimit: 6 } },
             y: {
+              min: 0,
+              max: 100,
               grid: { color: gridColor },
-              ticks: { color: textColor }
+              ticks: { color: textColor, callback: v => v + '%' }
             }
           }
         }
