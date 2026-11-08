@@ -194,6 +194,7 @@
         <div class="stat-item">
           <div class="stat-label">📶 Wi-Fi 信号</div>
           <div class="stat-val" id="wifiRssi">-- dBm</div>
+          <div id="bssidVal" style="font-size: 11px; color: var(--text-sub); margin-top: 3px; font-family: monospace;">--</div>
         </div>
         <div class="stat-item" id="boxTempCard">
           <div class="stat-label">📦 盒内温度 (SHT31)</div>
@@ -279,6 +280,12 @@
           batPctElem.innerText = `${pct}%`;
           batVoltElem.innerText = `${volt.toFixed(2)} V`;
           wifiElem.innerText = `${rssi} dBm`;
+          const bssidElem = document.getElementById('bssidVal');
+          if (latest.status) {
+            bssidElem.innerText = latest.status;
+          } else {
+            bssidElem.innerText = "";
+          }
 
           const boxTElem = document.getElementById('boxTemp');
           const boxHElem = document.getElementById('boxHumi');
