@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>☀️ 太阳能热水器</title>
+  <!-- Chart.js 图表库 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #F2F2F7;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --card-border: rgba(255, 255, 255, 0.4);
+      --text-main: #1C1C1E;
+      --text-sub: #8E8E93;
+      --accent: #007AFF;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --card-bg: rgba(28, 28, 30, 0.85);
+        --card-border: rgba(255, 255, 255, 0.1);
+        --text-main: #FFFFFF;
+        --text-sub: #8E8E93;
+        --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+    }
+    body {
+      margin: 0;
+      padding: env(safe-area-inset-top, 24px) 16px env(safe-area-inset-bottom, 24px) 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    .container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .header {
+      padding: 12px 4px 4px 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+    .btn-refresh {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 10px;
+    }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      box-sizing: border-box;
+    }
+    .main-metric {
+      text-align: center;
+      padding: 10px 0;
+    }
+    .comfort-badge {
+      display: inline-block;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 30px;
+      margin-bottom: 12px;
+    }
+    .temp-number {
+      font-size: 78px;
+      font-weight: 800;
+      letter-spacing: -3px;
+      line-height: 1;
+      margin: 10px 0;
+    }
+    .unit {
+      font-size: 32px;
+      font-weight: 600;
+      vertical-align: top;
+      margin-left: 2px;
+    }
+    .advice {
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-top: 8px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-item {
+      background: rgba(142, 142, 147, 0.08);
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-bottom: 4px;
+    }
+    .stat-val {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .chart-header {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chart-range {
+      font-size: 12px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+    .chart-box {
+      width: 100%;
+      height: 200px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1 class="title">☀️ 太阳能热水器</h1>
+        <div class="subtitle" id="updateTime">正在同步最新水温...</div>
+      </div>
+      <button class="btn-refresh" onclick="fetchData()">刷新</button>
+    </div>
+
+    <!-- 核心水温大卡片 -->
+    <div class="card main-metric">
+      <div class="comfort-badge" id="comfortBadge" style="background: rgba(0,122,255,0.1); color: var(--accent);">正在同步</div>
+      <div class="temp-number">
+        <span id="tempValue">--</span><span class="unit">°C</span>
+      </div>
+      <div class="advice" id="tempAdvice">正在从云端调取传感器读数...</div>
+    </div>
+
+    <!-- 设备副指标网格 -->
+    <div class="card">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-label">🔋 电池电量</div>
+          <div class="stat-val" id="batPercent">--%</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">⚡️ 电池电压</div>
+          <div class="stat-val" id="batVoltage">-- V</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">🌤 太阳能状态</div>
+          <div class="stat-val" id="solarStatus">--</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">📶 Wi-Fi 信号</div>
+          <div class="stat-val" id="wifiRssi">-- dBm</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 24小时历史温度走势图 -->
+    <div class="card">
+      <div class="chart-header">
+        <span>📈 水温走势曲线</span>
+        <span class="chart-range">最近 24 小时</span>
+      </div>
+      <div class="chart-box">
+        <canvas id="tempChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CHANNEL_ID = "3569758";
+    const READ_KEY = "A2LU28QO3OKLBI54";
+    let chartInstance = null;
+
+    async function fetchData() {
+      const timeElem = document.getElementById('updateTime');
+      const tempElem = document.getElementById('tempValue');
+      const badgeElem = document.getElementById('comfortBadge');
+      const adviceElem = document.getElementById('tempAdvice');
+      const batPctElem = document.getElementById('batPercent');
+      const batVoltElem = document.getElementById('batVoltage');
+      const solarElem = document.getElementById('solarStatus');
+      const wifiElem = document.getElementById('wifiRssi');
+
+      timeElem.innerText = "正在刷新...";
+
+      try {
+        const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=60`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const feeds = json.feeds || [];
+
+        if (feeds.length > 0) {
+          const latest = feeds[feeds.length - 1];
+          const temp = parseFloat(latest.field1) || 0.0;
+          const volt = parseFloat(latest.field2) || 0.0;
+          const pct = parseInt(latest.field3) || 0;
+          const rssi = parseInt(latest.field4) || 0;
+          const isCharging = parseInt(latest.field5) === 1;
+
+          // 更新实时数值
+          tempElem.innerText = temp.toFixed(1);
+          batPctElem.innerText = `${pct}%`;
+          batVoltElem.innerText = `${volt.toFixed(2)} V`;
+          wifiElem.innerText = `${rssi} dBm`;
+
+          if (isCharging) {
+            solarElem.innerText = "⚡️ 正在充电";
+            solarElem.style.color = "#34C759";
+          } else {
+            solarElem.innerText = "🔋 电池供电";
+            solarElem.style.color = "var(--text-main)";
+          }
+
+          // 水温舒适度计算
+          if (temp >= 45) {
+            badgeElem.style.background = "rgba(255, 59, 48, 0.12)";
+            badgeElem.style.color = "#FF3B30";
+            badgeElem.innerText = "🔥 水温极高";
+            adviceElem.innerText = "水温充足，洗澡请调配冷水防烫伤";
+          } else if (temp >= 38) {
+            badgeElem.style.background = "rgba(52, 199, 89, 0.12)";
+            badgeElem.style.color = "#34C759";
+            badgeElem.innerText = "🚿 舒适宜洗";
+            adviceElem.innerText = "水温适宜，可直接洗浴";
+          } else if (temp >= 30) {
+            badgeElem.style.background = "rgba(255, 149, 0, 0.12)";
+            badgeElem.style.color = "#FF9500";
+            badgeElem.innerText = "🌤 水温微温";
+            adviceElem.innerText = "水温偏温，洗澡可能需要辅助加热";
+          } else {
+            badgeElem.style.background = "rgba(90, 200, 250, 0.12)";
+            badgeElem.style.color = "#5AC8FA";
+            badgeElem.innerText = "❄️ 水温偏凉";
+            adviceElem.innerText = "水温较低，不建议直接洗浴";
+          }
+
+          // 时间换算 (转为当地时间)
+          const lastDate = new Date(latest.created_at);
+          timeElem.innerText = `更新于 ${lastDate.getHours().toString().padStart(2, '0')}:${lastDate.getMinutes().toString().padStart(2, '0')}:${lastDate.getSeconds().toString().padStart(2, '0')}`;
+
+          // 绘制平滑历史走势图
+          renderChart(feeds);
+        }
+      } catch (e) {
+        timeElem.innerText = "网络异常，未能获取最新数据";
+      }
+    }
+
+    function renderChart(feeds) {
+      const labels = [];
+      const dataPoints = [];
+
+      feeds.forEach(f => {
+        if (f.field1) {
+          const d = new Date(f.created_at);
+          labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+          dataPoints.push(parseFloat(f.field1));
+        }
+      });
+
+      const ctx = document.getElementById('tempChart').getContext('2d');
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+      const textColor = isDark ? '#8E8E93' : '#8E8E93';
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '水温 (°C)',
+            data: dataPoints,
+            borderColor: '#FF9500',
+            backgroundColor: 'rgba(255, 149, 0, 0.08)',
+            borderWidth: 2.5,
+            fill: true,
+            tension: 0.35,
+            pointRadius: 2,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: textColor, maxTicksLimit: 6 }
+            },
+            y: {
+              grid: { color: gridColor },
+              ticks: { color: textColor }
+            }
+          }
+        }
+      });
+    }
+
+    fetchData();
+    setInterval(fetchData, 60000); // 每一分钟静默拉取一次最新数据
+  </script>
+</body>
+</html>
