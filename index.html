@@ -171,8 +171,13 @@
       <div class="advice" id="tempAdvice">正在从云端调取传感器读数...</div>
     </div>
 
-    <!-- 设备副指标网格 -->
+    <!-- 设备副指标网格 (包含盒内温湿度与超温警示) -->
     <div class="card">
+      <!-- 盒温超标警示横幅 (>=50°C 时自动弹出高亮警示) -->
+      <div id="boxWarningBanner" style="display: none; background: rgba(255, 59, 48, 0.12); border: 1px solid rgba(255, 59, 48, 0.3); border-radius: 14px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: #FF3B30; align-items: center; gap: 8px;">
+        <span>⚠️ 盒内高温警示：温度已超 50°C，请检查遮阳或将防水盒移至阴凉背光处！</span>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-item">
           <div class="stat-label">🔋 电池电量</div>
@@ -190,6 +195,14 @@
           <div class="stat-label">📶 Wi-Fi 信号</div>
           <div class="stat-val" id="wifiRssi">-- dBm</div>
         </div>
+        <div class="stat-item" id="boxTempCard">
+          <div class="stat-label">📦 盒内温度 (SHT31)</div>
+          <div class="stat-val" id="boxTemp">-- °C</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">💧 盒内湿度 (SHT31)</div>
+          <div class="stat-val" id="boxHumi">-- %</div>
+        </div>
       </div>
     </div>
 
@@ -204,7 +217,18 @@
       </div>
     </div>
 
-    <!-- 图表 2：电池电量走势曲线 (严格 24 小时) -->
+    <!-- 图表 2：盒内温湿度走势 (双 Y 轴同图显示) -->
+    <div class="card">
+      <div class="chart-header">
+        <span>📦 盒内温湿度走势</span>
+        <span class="chart-range">最近 24 小时</span>
+      </div>
+      <div class="chart-box">
+        <canvas id="boxEnvChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 图表 3：电池电量走势曲线 (严格 24 小时) -->
     <div class="card">
       <div class="chart-header">
         <span>🔋 电池电量走势</span>
@@ -220,6 +244,7 @@
     const CHANNEL_ID = "3569758";
     const READ_KEY = "A2LU28QO3OKLBI54";
     let tempChartInstance = null;
+    let boxChartInstance = null;
     let batChartInstance = null;
 
     async function fetchData() {
@@ -235,7 +260,6 @@
       timeElem.innerText = "正在刷新...";
 
       try {
-        // 请求最近 200 个数据点，配合本地时间过滤器只留 24 小时内的点
         const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=200`;
         const res = await fetch(url);
         const json = await res.json();
@@ -248,12 +272,45 @@
           const pct = parseInt(latest.field3) || 0;
           const rssi = parseInt(latest.field4) || 0;
           const isCharging = parseInt(latest.field5) === 1;
+          const bTemp = latest.field6 ? parseFloat(latest.field6) : null;
+          const bHumi = latest.field7 ? parseFloat(latest.field7) : null;
 
-          // 更新实时数值
           tempElem.innerText = temp.toFixed(1);
           batPctElem.innerText = `${pct}%`;
           batVoltElem.innerText = `${volt.toFixed(2)} V`;
           wifiElem.innerText = `${rssi} dBm`;
+
+          const boxTElem = document.getElementById('boxTemp');
+          const boxHElem = document.getElementById('boxHumi');
+          const boxCard = document.getElementById('boxTempCard');
+          const warnBanner = document.getElementById('boxWarningBanner');
+
+          if (bTemp !== null) {
+            boxTElem.innerText = `${bTemp.toFixed(1)} °C`;
+            boxHElem.innerText = `${bHumi.toFixed(0)} %`;
+
+            // 盒温超标警示逻辑：>= 50°C 标红预警并弹出醒目 Banner
+            if (bTemp >= 50.0) {
+              boxTElem.style.color = "#FF3B30";
+              boxCard.style.background = "rgba(255, 59, 48, 0.12)";
+              boxCard.style.border = "1px solid rgba(255, 59, 48, 0.4)";
+              warnBanner.style.display = "flex";
+            } else if (bTemp >= 42.0) {
+              boxTElem.style.color = "#FF9500";
+              boxCard.style.background = "rgba(142, 142, 147, 0.08)";
+              boxCard.style.border = "none";
+              warnBanner.style.display = "none";
+            } else {
+              boxTElem.style.color = "var(--text-main)";
+              boxCard.style.background = "rgba(142, 142, 147, 0.08)";
+              boxCard.style.border = "none";
+              warnBanner.style.display = "none";
+            }
+          } else {
+            boxTElem.innerText = "--";
+            boxHElem.innerText = "--";
+            warnBanner.style.display = "none";
+          }
 
           if (isCharging) {
             solarElem.innerText = "⚡️ 正在充电";
@@ -287,11 +344,9 @@
             adviceElem.innerText = "水温偏低不适合洗澡，建议打开电热水器加热";
           }
 
-          // 时间换算 (转为当地时间)
           const lastDate = new Date(latest.created_at);
           timeElem.innerText = `更新于 ${lastDate.getHours().toString().padStart(2, '0')}:${lastDate.getMinutes().toString().padStart(2, '0')}:${lastDate.getSeconds().toString().padStart(2, '0')}`;
 
-          // 绘制平滑历史走势图（水温 + 电池，严格 24 小时以内）
           renderCharts(feeds);
         }
       } catch (e) {
@@ -302,22 +357,22 @@
     function renderCharts(feeds) {
       const labels = [];
       const tempData = [];
+      const boxTData = [];
+      const boxHData = [];
       const batData = [];
 
-      // 严格时间过滤：只保留最近 24 小时以内（86,400,000 毫秒）的数据点
       const now = new Date();
       const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-      const filteredFeeds = feeds.filter(f => {
-        const itemDate = new Date(f.created_at);
-        return itemDate >= cutoff24h;
-      });
+      const filteredFeeds = feeds.filter(f => new Date(f.created_at) >= cutoff24h);
 
       filteredFeeds.forEach(f => {
         const d = new Date(f.created_at);
         labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
         tempData.push(f.field1 ? parseFloat(f.field1) : null);
         batData.push(f.field3 ? parseInt(f.field3) : null);
+        boxTData.push(f.field6 ? parseFloat(f.field6) : null);
+        boxHData.push(f.field7 ? parseFloat(f.field7) : null);
       });
 
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -354,7 +409,70 @@
         }
       });
 
-      // 2. 电池电量图表
+      // 2. 盒内温湿度同图双 Y 轴图表 (红线温度 / 蓝虚线湿度)
+      const ctxBox = document.getElementById('boxEnvChart').getContext('2d');
+      if (boxChartInstance) boxChartInstance.destroy();
+      boxChartInstance = new Chart(ctxBox, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: '盒内温度 (°C)',
+              data: boxTData,
+              borderColor: '#FF2D55',
+              backgroundColor: 'rgba(255, 45, 85, 0.05)',
+              borderWidth: 2.2,
+              fill: false,
+              tension: 0.35,
+              pointRadius: 2,
+              yAxisID: 'yTemp'
+            },
+            {
+              label: '盒内湿度 (%)',
+              data: boxHData,
+              borderColor: '#5AC8FA',
+              borderDash: [4, 4],
+              backgroundColor: 'transparent',
+              borderWidth: 2.0,
+              fill: false,
+              tension: 0.35,
+              pointRadius: 2,
+              yAxisID: 'yHumi'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { color: textColor, boxWidth: 12, font: { size: 11 } }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: textColor, maxTicksLimit: 6 } },
+            yTemp: {
+              type: 'linear',
+              position: 'left',
+              grid: { color: gridColor },
+              ticks: { color: '#FF2D55', callback: v => v + '°C' }
+            },
+            yHumi: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 100,
+              grid: { display: false },
+              ticks: { color: '#5AC8FA', callback: v => v + '%' }
+            }
+          }
+        }
+      });
+
+      // 3. 电池电量图表
       const ctxBat = document.getElementById('batChart').getContext('2d');
       if (batChartInstance) batChartInstance.destroy();
       batChartInstance = new Chart(ctxBat, {
