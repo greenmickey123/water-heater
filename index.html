@@ -193,7 +193,7 @@
       </div>
     </div>
 
-    <!-- 图表 1：水温走势曲线 -->
+    <!-- 图表 1：水温走势曲线 (严格 24 小时) -->
     <div class="card">
       <div class="chart-header">
         <span>📈 水温走势曲线</span>
@@ -204,11 +204,11 @@
       </div>
     </div>
 
-    <!-- 图表 2：电池电量走势曲线 -->
+    <!-- 图表 2：电池电量走势曲线 (严格 24 小时) -->
     <div class="card">
       <div class="chart-header">
         <span>🔋 电池电量走势</span>
-        <span class="chart-range">充放电监控</span>
+        <span class="chart-range">最近 24 小时</span>
       </div>
       <div class="chart-box">
         <canvas id="batChart"></canvas>
@@ -235,7 +235,8 @@
       timeElem.innerText = "正在刷新...";
 
       try {
-        const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=60`;
+        // 请求最近 200 个数据点，配合本地时间过滤器只留 24 小时内的点
+        const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=200`;
         const res = await fetch(url);
         const json = await res.json();
         const feeds = json.feeds || [];
@@ -290,7 +291,7 @@
           const lastDate = new Date(latest.created_at);
           timeElem.innerText = `更新于 ${lastDate.getHours().toString().padStart(2, '0')}:${lastDate.getMinutes().toString().padStart(2, '0')}:${lastDate.getSeconds().toString().padStart(2, '0')}`;
 
-          // 绘制平滑历史走势图（水温 + 电池）
+          // 绘制平滑历史走势图（水温 + 电池，严格 24 小时以内）
           renderCharts(feeds);
         }
       } catch (e) {
@@ -303,7 +304,16 @@
       const tempData = [];
       const batData = [];
 
-      feeds.forEach(f => {
+      // 严格时间过滤：只保留最近 24 小时以内（86,400,000 毫秒）的数据点
+      const now = new Date();
+      const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const filteredFeeds = feeds.filter(f => {
+        const itemDate = new Date(f.created_at);
+        return itemDate >= cutoff24h;
+      });
+
+      filteredFeeds.forEach(f => {
         const d = new Date(f.created_at);
         labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
         tempData.push(f.field1 ? parseFloat(f.field1) : null);
