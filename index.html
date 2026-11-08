@@ -92,6 +92,7 @@
       padding: 6px 16px;
       border-radius: 30px;
       margin-bottom: 12px;
+      transition: all 0.3s ease;
     }
     .temp-number {
       font-size: 78px;
@@ -99,6 +100,7 @@
       letter-spacing: -3px;
       line-height: 1;
       margin: 10px 0;
+      transition: color 0.3s ease;
     }
     .unit {
       font-size: 32px;
@@ -160,7 +162,7 @@
       <button class="btn-refresh" onclick="fetchData()">刷新</button>
     </div>
 
-    <!-- 核心水温大卡片 -->
+    <!-- 核心水温大卡片 (颜色根据温度自动变化) -->
     <div class="card main-metric">
       <div class="comfort-badge" id="comfortBadge" style="background: rgba(0,122,255,0.1); color: var(--accent);">正在同步</div>
       <div class="temp-number">
@@ -260,27 +262,28 @@
             solarElem.style.color = "var(--text-main)";
           }
 
-          // 水温舒适度计算
-          if (temp >= 45) {
+          // 水温颜色与舒适度分级计算 (定制逻辑)
+          if (temp >= 60.0) {
+            // >= 60°C：极烫红色
             badgeElem.style.background = "rgba(255, 59, 48, 0.12)";
             badgeElem.style.color = "#FF3B30";
+            tempElem.style.color = "#FF3B30";
             badgeElem.innerText = "🔥 水温极高";
-            adviceElem.innerText = "水温充足，洗澡请调配冷水防烫伤";
-          } else if (temp >= 38) {
+            adviceElem.innerText = "水温非常烫，洗澡务必调配冷水防烫伤！";
+          } else if (temp >= 42.0) {
+            // 42°C ~ 60°C：舒适绿色
             badgeElem.style.background = "rgba(52, 199, 89, 0.12)";
             badgeElem.style.color = "#34C759";
-            badgeElem.innerText = "🚿 舒适宜洗";
-            adviceElem.innerText = "水温适宜，可直接洗浴";
-          } else if (temp >= 30) {
-            badgeElem.style.background = "rgba(255, 149, 0, 0.12)";
-            badgeElem.style.color = "#FF9500";
-            badgeElem.innerText = "🌤 水温微温";
-            adviceElem.innerText = "水温偏温，洗澡可能需要辅助加热";
+            tempElem.style.color = "#34C759";
+            badgeElem.innerText = "🚿 水温适宜";
+            adviceElem.innerText = "水温非常适合洗澡，可直接洗浴";
           } else {
-            badgeElem.style.background = "rgba(90, 200, 250, 0.12)";
-            badgeElem.style.color = "#5AC8FA";
-            badgeElem.innerText = "❄️ 水温偏凉";
-            adviceElem.innerText = "水温较低，不建议直接洗浴";
+            // < 42°C：偏冷蓝色
+            badgeElem.style.background = "rgba(0, 122, 255, 0.12)";
+            badgeElem.style.color = "#007AFF";
+            tempElem.style.color = "#007AFF";
+            badgeElem.innerText = "❄️ 水温偏冷";
+            adviceElem.innerText = "水温偏低不适合洗澡，建议打开电热水器加热";
           }
 
           // 时间换算 (转为当地时间)
