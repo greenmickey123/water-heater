@@ -190,6 +190,7 @@
         <div class="stat-item">
           <div class="stat-label">🌤 供电状态</div>
           <div class="stat-val" id="solarStatus">--</div>
+          <div id="deviceMetaVal" style="font-size: 11px; color: var(--text-sub); margin-top: 3px; font-family: monospace;">--</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">📶 Wi-Fi 信号</div>
@@ -281,10 +282,23 @@
           batVoltElem.innerText = `${volt.toFixed(2)} V`;
           wifiElem.innerText = `${rssi} dBm`;
           const bssidElem = document.getElementById('bssidVal');
+          const metaElem = document.getElementById('deviceMetaVal');
+
           if (latest.status) {
-            bssidElem.innerText = latest.status;
+            const parts = latest.status.split(',');
+            if (parts.length >= 3) {
+              const ver = parts[0];
+              const ip = parts[1];
+              const bssid = parts[2];
+              metaElem.innerText = `${ip} · ${ver}`;
+              bssidElem.innerText = bssid;
+            } else {
+              bssidElem.innerText = latest.status;
+              metaElem.innerText = "";
+            }
           } else {
             bssidElem.innerText = "";
+            metaElem.innerText = "";
           }
 
           const boxTElem = document.getElementById('boxTemp');
